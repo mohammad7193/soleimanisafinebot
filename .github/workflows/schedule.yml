@@ -2,19 +2,10 @@ name: Bale Groups Automation
 
 on:
   schedule:
-    # 1. برنامه روزانه حدیث - ساعت 10:00 ایران -> 06:30 UTC
     - cron: '30 6 * * *'
-    
-    # 2. یادآوری اول - ساعت 12:00 سه‌شنبه و جمعه -> 08:30 UTC
     - cron: '30 8 * * 2,5'
-    
-    # 3. یادآوری دوم - ساعت 14:00 سه‌شنبه و جمعه -> 10:30 UTC
     - cron: '30 10 * * 2,5'
-    
-    # 4. یادآوری سوم - ساعت 16:00 سه‌شنبه و جمعه -> 12:30 UTC
     - cron: '30 12 * * 2,5'
-    
-  # قابلیت اجرای دستی اسکریپت برای تست
   workflow_dispatch: 
 
 jobs:
@@ -34,8 +25,6 @@ jobs:
 
       - name: Execute Script
         env:
-          # توکن از سکرت‌های گیت‌هاب خوانده می‌شود
           BALE_BOT_TOKEN: ${{ secrets.BALE_BOT_TOKEN }}
-          # عبارت کرون زمان‌بندی برای تشخیص نوع عملیات به پایتون ارسال می‌شود
           CRON_SCHEDULE: ${{ github.event.schedule }}
         run: python main.py

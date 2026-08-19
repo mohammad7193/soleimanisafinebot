@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 TOKEN = os.environ.get("BALE_BOT_TOKEN")
 CRON_SCHEDULE = os.environ.get("CRON_SCHEDULE", "")
 
-# لیست آپدیت‌شده تمامی گروه‌های استخراج‌شده
+# لیست آپدیت‌شده تمامی ۸ گروه هدف
 CHAT_IDS = [
     "5608057203", # مربیان سفینه النجاه قشم
     "5460021172", # مربیان غرب هرمزگان
@@ -15,7 +15,8 @@ CHAT_IDS = [
     "5900602024", # مربيان دوره دوم قشم ( سفینة النجاة )
     "5220738339", # سفینه النجات خمیر دوره دو(طرح برهان)
     "4967616984", # ناظمان غرب
-    "5867565511"  # ناظمان قشم
+    "5867565511", # ناظمان قشم
+    "4568712387"  # گروه سفینة النجاه برهان قشم
 ]
 
 if not TOKEN:
@@ -37,6 +38,7 @@ def format_respects(text):
     return text.strip()
 
 def extract_hadith_and_source(soup):
+    # استخراج بخش حدیث روز که شامل مضامین متنوع رشد و تعالی است
     elements = soup.find_all(string=re.compile("حدیث روز"))
     for el in elements:
         parent = el.find_parent("div") or el.find_parent("p")
@@ -81,7 +83,8 @@ def get_daily_hadith():
             
     except Exception as e:
         print(f"Error scraping hadith: {e}")
-        return "☀️ از پیامبر اکرم صلی الله علیه و آله نقل است:\n\n✨ اِنَّما بُعِثْتُ لِاُتَمِّمَ مَکارِمَ الاَخْلاقِ.\nمن تنها برانگیخته شده‌ام تا اخلاق بزرگوارانه را به کمال رسانم.\n\n📚 منبع: بحارالانوار، ج ۶۸، ص ۳۸۲"
+        # حدیث جایگزین در صورت قطعی موقت سایت
+        return "☀️ از امام علی علیه السلام نقل است:\n\n✨ حُسنُ الصُّحبَةِ يَزيدُ في مَحَبَّةِ القُلوبِ.\nخوش‌رفتاری و هم‌نشینی نيکو، محبّت دل‌ها را می‌افزايد.\n\n📚 منبع: غررالحکم، ج ۴، ص ۳۹۵"
 
 def send_message(text):
     if not text: return

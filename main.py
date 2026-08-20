@@ -1,13 +1,13 @@
 import os
 import re
 import sys
+import datetime
 import requests
 from bs4 import BeautifulSoup
 
 TOKEN = os.environ.get("BALE_BOT_TOKEN")
 CRON_SCHEDULE = os.environ.get("CRON_SCHEDULE", "")
 
-# لیست آپدیت‌شده تمامی ۸ گروه هدف
 CHAT_IDS = [
     "5608057203", # مربیان سفینه النجاه قشم
     "5460021172", # مربیان غرب هرمزگان
@@ -26,6 +26,7 @@ if not TOKEN:
 BALE_API_URL = f"https://tapi.bale.ai/bot{TOKEN}/sendMessage"
 
 def format_respects(text):
+    """جایگزینی حروف اختصاری با عبارات احترام کامل"""
     replacements = {
         r'\s*\(ع\)\s*': ' علیه السلام ',
         r'\s*\(ص\)\s*': ' صلی الله علیه و آله ',
@@ -38,41 +39,52 @@ def format_respects(text):
     return text.strip()
 
 def extract_hadith_and_source(soup):
-    # استخراج بخش حدیث روز که شامل مضامین متنوع رشد و تعالی است
-    elements = soup.find_all(string=re.compile("حدیث روز"))
-    for el in elements:
-        parent = el.find_parent("div") or el.find_parent("p")
-        if parent:
-            text = parent.get_text(separator="\n", strip=True)
-            lines = [line.strip() for line in text.split('\n') if line.strip()]
-            if len(lines) >= 3:
-                source = lines[-1]
-                body = " ".join(lines[1:-1])
-                if re.search(r'(ج\s*\d+|ص\s*\d+|بحار|کافی|وسایل|میزان)', source):
-                    return body, source
+    """استخراج تمام احادیث صفحه و انتخاب چرخشی بر اساس تقویم"""
+    valid_hadiths = []
     
-    paras = soup.find_all('p')
-    for p in paras:
-        text = p.get_text(separator="\n", strip=True)
-        if "علیه السلام" in text or "صلی الله" in text or ":" in text:
+    # جستجو در تمام تگ‌های پاراگراف و دایو صفحه برای پیدا کردن هر محتوایی که شبیه حدیث است
+    containers = soup.find_all(['p', 'div'])
+    
+    for c in containers:
+        text = c.get_text(separator="\n", strip=True)
+        # اگر کلمات کلیدی حدیث را داشت
+        if any(keyword in text for keyword in ["علیه السلام", "صلی الله", "نقل است", "قال"]):
             lines = [line.strip() for line in text.split('\n') if line.strip()]
-            if len(lines) > 1:
+            
+            # معمولاً خط آخر منبع است و خطوط قبلی متن حدیث
+            if len(lines) >= 2:
                 source = lines[-1]
                 body = " ".join(lines[:-1])
-                if len(source) < 100: 
-                    return body, source
-    raise ValueError("Could not find standard structure.")
+                
+                # یک اعتبارسنجی منطقی: طول منبع خیلی طولانی نباشد و متن اصلی هم خیلی کوتاه نباشد
+                if len(source) < 150 and len(body) > 20:
+                    valid_hadiths.append((body, source))
+    
+    if not valid_hadiths:
+        raise ValueError("هیچ ساختار استانداردی برای حدیث در صفحه یافت نشد.")
+        
+    # حذف موارد کاملاً تکراری از لیستی که جمع‌آوری کردیم
+    valid_hadiths = list(dict.fromkeys(valid_hadiths))
+    
+    # ترفند ضد تکرار: استفاده از شماره روز در سال برای گردش در لیست احادیث
+    # به این ترتیب هر روز یک ایندکس جدید خوانده می‌شود، حتی اگر سایت آپدیت نشده باشد
+    day_of_year = datetime.datetime.now().timetuple().tm_yday
+    selected_index = day_of_year % len(valid_hadiths)
+    
+    return valid_hadiths[selected_index]
 
 def get_daily_hadith():
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get("https://www.hadithlib.com/", headers=headers, timeout=15)
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        # تایم‌اوت را کمی بالاتر می‌بریم تا سایت‌های ایرانی بهتر لود شوند
+        response = requests.get("https://www.hadithlib.com/", headers=headers, timeout=20)
         response.raise_for_status()
         
         soup = BeautifulSoup(response.text, 'html.parser')
         raw_text, source = extract_hadith_and_source(soup)
         formatted_text = format_respects(raw_text)
         
+        # فرمت‌بندی نهایی خروجی
         if ":" in formatted_text or "：" in formatted_text:
             parts = formatted_text.replace("：", ":").split(":", 1)
             speaker = parts[0].strip()
@@ -83,7 +95,7 @@ def get_daily_hadith():
             
     except Exception as e:
         print(f"Error scraping hadith: {e}")
-        # حدیث جایگزین در صورت قطعی موقت سایت
+        # در صورتی که کلاً سایت قطع باشد، این حدیث خوانده می‌شود
         return "☀️ از امام علی علیه السلام نقل است:\n\n✨ حُسنُ الصُّحبَةِ يَزيدُ في مَحَبَّةِ القُلوبِ.\nخوش‌رفتاری و هم‌نشینی نيکو، محبّت دل‌ها را می‌افزايد.\n\n📚 منبع: غررالحکم، ج ۴، ص ۳۹۵"
 
 def send_message(text):
@@ -93,9 +105,9 @@ def send_message(text):
             payload = {"chat_id": chat_id, "text": text}
             res = requests.post(BALE_API_URL, json=payload, timeout=10)
             res.raise_for_status()
-            print(f"Sent to {chat_id}")
+            print(f"Sent successfully to {chat_id}")
         except Exception as e:
-            print(f"Failed {chat_id}: {e}")
+            print(f"Failed to send to {chat_id}: {e}")
 
 def main():
     if CRON_SCHEDULE == '30 6 * * *':
@@ -107,6 +119,7 @@ def main():
     elif CRON_SCHEDULE == '30 12 * * 2,5':
         send_message("یادآوری ارسال گزارش متنی و تصویری از برگزاری کلاس در گروه 📸💬")
     else:
+        # حالت تست دستی
         send_message(get_daily_hadith())
 
 if __name__ == "__main__":

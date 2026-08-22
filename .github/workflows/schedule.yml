@@ -12,7 +12,6 @@ jobs:
   run-automation:
     runs-on: ubuntu-latest
     
-    # اجازه نوشتن در ریپازیتوری برای ذخیره تاریخچه ضروری است
     permissions:
       contents: write
       
@@ -34,12 +33,14 @@ jobs:
           CRON_SCHEDULE: ${{ github.event.schedule }}
         run: python main.py
 
-      # این مرحله فایل تاریخچه را در گیت‌هاب شما ذخیره می‌کند تا برای روز بعد بماند
       - name: Commit and Push History
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+          # این دستور بررسی می‌کند اگر فایل نبود آن را ایجاد کند تا گیت‌هاب ارور ندهد
+          touch hadith_history.txt
+          
           git add hadith_history.txt
-          # فقط اگر فایل تغییر کرده باشد پوش می‌کند
           git diff --quiet && git diff --staged --quiet || git commit -m "Update hadith history"
           git push

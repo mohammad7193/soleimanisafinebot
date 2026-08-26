@@ -37,10 +37,7 @@ jobs:
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          
-          # این دستور بررسی می‌کند اگر فایل نبود آن را ایجاد کند تا گیت‌هاب ارور ندهد
           touch hadith_history.txt
-          
           git add hadith_history.txt
           git diff --quiet && git diff --staged --quiet || git commit -m "Update hadith history"
           git push

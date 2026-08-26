@@ -1,20 +1,29 @@
 import os
 import re
 import sys
+import hashlib
 import requests
 from bs4 import BeautifulSoup
 
+# دریافت توکن به صورت ایمن
 TOKEN = os.environ.get("BALE_BOT_TOKEN")
 CRON_SCHEDULE = os.environ.get("CRON_SCHEDULE", "")
 HISTORY_FILE = "hadith_history.txt"
 
+# لیست کامل ۸ گروه
 CHAT_IDS = [
-    "5608057203", "5460021172", "5190191521", "5900602024", 
-    "5220738339", "4967616984", "5867565511", "4568712387"
+    "5608057203", # مربیان سفینه النجاه قشم
+    "5460021172", # مربیان غرب هرمزگان
+    "5190191521", # هماهنگی طرح برهان
+    "5900602024", # مربيان دوره دوم قشم ( سفینة النجاة )
+    "5220738339", # سفینه النجات خمیر دوره دو(طرح برهان)
+    "4967616984", # ناظمان غرب
+    "5867565511", # ناظمان قشم
+    "4568712387"  # گروه سفینة النجاه برهان قشم
 ]
 
 if not TOKEN:
-    print("Error: BALE_BOT_TOKEN is not set.")
+    print("Error: BALE_BOT_TOKEN is not set in GitHub Secrets.")
     sys.exit(1)
 
 BALE_API_URL = f"https://tapi.bale.ai/bot{TOKEN}/sendMessage"
@@ -65,26 +74,23 @@ def extract_hadith_and_source(soup):
     valid_hadiths = list(dict.fromkeys(valid_hadiths))
     history = load_history()
     
-    # فیلتر کردن احادیث تکراری (برای شناسه از 50 کاراکتر اول استفاده میکنیم)
     new_hadiths = []
     for body, source in valid_hadiths:
-        identifier = body.replace("\n", " ")[:50].strip()
+        # ایجاد هش رمزنگاری شده از کل متن حدیث برای دقت 100 درصدی
+        identifier = hashlib.md5(body.encode('utf-8')).hexdigest()
         if identifier not in history:
             new_hadiths.append((body, source, identifier))
             
-    # اگر همه احادیث سایت تکراری بودند (قبلا ارسال شده بودند)
     if not new_hadiths:
         print("All scraped hadiths were used. Clearing history to restart cycle.")
         clear_history()
-        # استفاده مجدد از لیست اولیه
         selected = valid_hadiths[0]
-        identifier = selected[0].replace("\n", " ")[:50].strip()
+        identifier = hashlib.md5(selected[0].encode('utf-8')).hexdigest()
         save_to_history(identifier)
         return selected[0], selected[1]
         
-    # انتخاب اولین حدیث جدید
     selected = new_hadiths[0]
-    save_to_history(selected[2]) # ذخیره در تاریخچه
+    save_to_history(selected[2])
     return selected[0], selected[1]
 
 def get_daily_hadith():
@@ -121,15 +127,15 @@ def send_message(text):
             print(f"Failed to send to {chat_id}: {e}")
 
 def main():
-    # اگر اسکریپت فقط برای یادآوری‌ها اجرا شده، نباید پروسه حدیث (و ثبت تاریخچه) اجرا شود
-    if CRON_SCHEDULE == '30 8 * * 2,5':
+    if CRON_SCHEDULE == '30 6 * * *':
+        send_message(get_daily_hadith())
+    elif CRON_SCHEDULE == '30 8 * * 2,5':
         send_message("سلام یادآوری برگزاری کلاس 📚🏫")
     elif CRON_SCHEDULE == '30 10 * * 2,5':
         send_message("سلام یادآوری ثبت گزارش کلاس در سامانه تاک 📝💻")
     elif CRON_SCHEDULE == '30 12 * * 2,5':
         send_message("یادآوری ارسال گزارش متنی و تصویری از برگزاری کلاس در گروه 📸💬")
     else:
-        # برای ساعت 10 صبح (حدیث) یا اجرای دستی
         send_message(get_daily_hadith())
 
 if __name__ == "__main__":
